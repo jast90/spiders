@@ -4,6 +4,8 @@ import urllib.request
 from Node import Node
 import time
 import json
+import random
+
 
 provinceUrl = "http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/"
 
@@ -24,16 +26,27 @@ def getProvince():
 
     return plist
 
+def loadUserAgents(uafile):
+    uas = []
+    with open(uafile, 'rb') as uaf:
+        for ua in uaf.readlines():
+            if ua:
+                uas.append(ua.strip()[:-1])
+    random.shuffle(uas)
+    return uas
+
+uas = loadUserAgents("user_agents.txt")
+
 def getHtml(url):
     html =""
-
+    ua = random.choice(uas)
     # 写法1：
     # html = urlopen("http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/").read().decode('gbk')
     req = urllib.request.Request(url, headers = {
         'Connection': 'Keep-Alive',
         'Accept': 'text/html, application/xhtml+xml, */*',
         'Accept-Language': 'en-US,en;q=0.8,zh-Hans-CN;q=0.5,zh-Hans;q=0.3',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; Trident/7.0; rv:11.0) like Gecko'
+        'User-Agent': ua
     })
 
     # 写法2:
@@ -72,10 +85,15 @@ def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr",
                 subs.append(sub)
                 # print(sub)
         node.setSubs(subs)
+        
+def obj_to_dict(obj):
+    return obj.__dict__
 
 if __name__ == "__main__":
     nodes = getProvince()
     for node in nodes:
-        # print(node)
+        print(node)
         getAllByNode(node)
     print(nodes.toJSON())
+    s =json.dumps(nodes, default=obj_to_dict)
+    print(s)
