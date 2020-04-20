@@ -5,6 +5,7 @@ from Node import Node
 import time
 import json
 import random
+import requests
 
 
 provinceUrl = "http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/"
@@ -12,7 +13,7 @@ provinceUrl = "http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/"
 # 获取省份
 def getProvince():
     
-    soup = BeautifulSoup(getHtml(provinceUrl))
+    soup = BeautifulSoup(getHtmlByRequests(provinceUrl))
 
     provincetr = soup.find_all("tr", class_="provincetr")
     # print(provincetr)
@@ -40,6 +41,7 @@ uas = loadUserAgents("user_agents.txt")
 def getHtml(url):
     html =""
     ua = random.choice(uas)
+    print(ua)
     # 写法1：
     # html = urlopen("http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/").read().decode('gbk')
     req = urllib.request.Request(url, headers = {
@@ -48,22 +50,28 @@ def getHtml(url):
         'Accept-Language': 'en-US,en;q=0.8,zh-Hans-CN;q=0.5,zh-Hans;q=0.3',
         'User-Agent': ua
     })
-
+    time.sleep(3)
     # 写法2:
     with urlopen(req) as response:
         data = response.read()
         html = data.decode('gbk')
- 
+        print("code:{}".format(response.getcode()))
     
     # print(html)
     return html
+session = requests.Session()
+
+def getHtmlByRequests(url):
+    response = session.get(url)
+    response.encoding="gbk"
+    return response.text
 
 
 def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr","villagetr"]):
     if(node.url):
         i = list.index(_class)
         # TODO 改成字符串格式化的形式
-        nodeSoup = BeautifulSoup(getHtml(node.url))
+        nodeSoup = BeautifulSoup(getHtmlByRequests(node.url))
         soups = nodeSoup.find_all("tr",class_=_class)
         subs = []
         for soup in soups:
@@ -72,8 +80,7 @@ def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr",
                 name = tdSoup.find("a").contents[0]
                 url = node.url[:node.url.rindex('/')+1] + tdSoup.find("a")['href']
                 sub = Node(name,url)
-                time.sleep(1)
-                # print(sub)
+                print(sub)
                 sub.setSubs(getAllByNode(sub,list[i+1]))
                 subs.append(sub)
             else:
@@ -83,7 +90,7 @@ def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr",
                 sub = Node(name,"")
                 sub.setCode(code)
                 subs.append(sub)
-                # print(sub)
+                print(sub)
         node.setSubs(subs)
         
 def obj_to_dict(obj):
@@ -91,9 +98,9 @@ def obj_to_dict(obj):
 
 if __name__ == "__main__":
     nodes = getProvince()
-    for node in nodes:
-        print(node)
-        getAllByNode(node)
-    print(nodes.toJSON())
+    # for node in nodes:
+    #     print(node)
+    #     getAllByNode(node)
+    getAllByNode(nodes[1])
     s =json.dumps(nodes, default=obj_to_dict)
     print(s)
