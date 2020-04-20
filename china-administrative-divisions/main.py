@@ -6,7 +6,7 @@ import time
 import json
 import random
 import requests
-
+import multiprocessing as mp
 
 provinceUrl = "http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/"
 
@@ -77,12 +77,13 @@ def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr",
         for soup in soups:
             if(_class != "villagetr"):
                 tdSoup = soup.find_all("td")[1]
-                name = tdSoup.find("a").contents[0]
-                url = node.url[:node.url.rindex('/')+1] + tdSoup.find("a")['href']
-                sub = Node(name,url)
-                print(sub)
-                getAllByNode(sub,list[i+1])
-                subs.append(sub)
+                if(tdSoup.find("a")):
+                    name = tdSoup.find("a").contents[0]
+                    url = node.url[:node.url.rindex('/')+1] + tdSoup.find("a")['href']
+                    sub = Node(name,url)
+                    print(sub)
+                    getAllByNode(sub,list[i+1])
+                    subs.append(sub)
             else:
                 tdSoups = soup.find_all("td")
                 name = tdSoups[2].contents[0]
@@ -96,11 +97,22 @@ def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr",
 def obj_to_dict(obj):
     return obj.__dict__
 
+
+# 多进程处理
+def multicore(nodes):
+    pool = mp.Pool()
+    try:
+        pool.map(getAllByNode,nodes)
+    except Exception as e:
+        print(e)
+
+# 单进程处理
+def signleCore(nodes):
+    getAllByNode(nodes[2])
+    
 if __name__ == "__main__":
     nodes = getProvince()
-    for node in nodes:
-        print(node)
-        getAllByNode(node)
+    multicore(nodes)
     s =json.dumps(nodes, default=obj_to_dict,ensure_ascii=False).encode('utf8')
     s = s.decode('utf8')
     print(s)
