@@ -81,7 +81,7 @@ def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr",
                 url = node.url[:node.url.rindex('/')+1] + tdSoup.find("a")['href']
                 sub = Node(name,url)
                 print(sub)
-                sub.setSubs(getAllByNode(sub,list[i+1]))
+                getAllByNode(sub,list[i+1])
                 subs.append(sub)
             else:
                 tdSoups = soup.find_all("td")
@@ -98,9 +98,11 @@ def obj_to_dict(obj):
 
 if __name__ == "__main__":
     nodes = getProvince()
-    # for node in nodes:
-    #     print(node)
-    #     getAllByNode(node)
-    getAllByNode(nodes[1])
-    s =json.dumps(nodes, default=obj_to_dict)
+    for node in nodes:
+        print(node)
+        getAllByNode(node)
+    s =json.dumps(nodes, default=obj_to_dict,ensure_ascii=False).encode('utf8')
+    s = s.decode('utf8')
     print(s)
+    with open("city.json","w") as file:
+        file.write(s)
