@@ -8,6 +8,7 @@ import random
 import requests
 import multiprocessing as mp
 import pymysql.cursors
+import redis
 
 provinceUrl = "http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/"
 
@@ -23,7 +24,12 @@ def getProvince():
     for province in provincetr:
         pa = province.find_all("a")
         for a in pa:
-            p = Node(a.contents[0],"%s%s" %(provinceUrl,a['href']))
+            name = a.contents[0]
+            url = "{}{}".format(provinceUrl,a['href'])
+            i = url.strip().rindex('/')
+            code = url[i+1:i+3]
+            p = Node(name,url)
+            p.setCode(code)
             plist.append(p)
 
     return plist
@@ -38,6 +44,7 @@ def loadUserAgents(uafile):
     return uas
 
 uas = loadUserAgents("user_agents.txt")
+r = redis.Redis(host='localhost',port=6379,db=0,decode_responses=True)
 
 def getHtml(url):
     html =""
@@ -60,13 +67,29 @@ def getHtml(url):
     
     # print(html)
     return html
+
 session = requests.Session()
+hkey = "docs"
 
 def getHtmlByRequests(url):
-    response = session.get(url)
-    response.encoding="gbk"
-    return response.text
+    html = r.hget(hkey,url)
+    if html :
+        print("get html from redis")
+        if '502' in r.get(url):
+            print("redis cache is dirty")
+            response = session.get(url)
+            response.encoding="gbk"
+            html = response.text
+            r.hset(hkey,url,html)
+    else:
+        print("get html by requests")
+        response = session.get(url)
+        response.encoding="gbk"
+        html = response.text
+        if '502' not in html:
+            r.hset(hkey,url,html)
 
+    return html    
 
 def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr","villagetr"]):
     if(node.url):
@@ -103,6 +126,7 @@ def getAllByNodeAndInsertIntoDB(node:Node,_class="citytr",list = ["citytr","coun
     pid = insertIntoDB(node)
     if(node.url):
         i = list.index(_class)
+        level = i+1
         nodeSoup = BeautifulSoup(getHtmlByRequests(node.url))
         soups = nodeSoup.find_all("tr",class_=_class)
         for soup in soups:
@@ -115,7 +139,7 @@ def getAllByNodeAndInsertIntoDB(node:Node,_class="citytr",list = ["citytr","coun
                     sub = Node(name,url)
                     sub.setCode(code)
                     # print(sub)
-                    insertIntoDB(sub,pid,i)
+                    insertIntoDB(sub,pid,level)
                     getAllByNodeAndInsertIntoDB(sub,list[i+1])
             else:
                 # print(soup)
@@ -125,7 +149,7 @@ def getAllByNodeAndInsertIntoDB(node:Node,_class="citytr",list = ["citytr","coun
                 sub = Node(name,"")
                 sub.setCode(code)
                 # print(sub)
-                insertIntoDB(sub,pid,i)
+                insertIntoDB(sub,pid,level)
 
 def insertIntoDB(node:Node,parentId=0,level=0):
     print('insertIntoDB')
@@ -194,10 +218,16 @@ def insertANode():
     id = insertIntoDB(node)
     print(id)
 
+def stringContain(s1,s2):
+    return s2 not in s1
+
 if __name__ == "__main__":
     nodes = getProvince()
     time1 = time.time()
     signleCore(nodes)
     # multicore(nodes)
+    # print(r.hkeys(hkey)
     time2 = time.time()
     print(str(time2-time1))
+
+
