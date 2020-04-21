@@ -7,6 +7,7 @@ import json
 import random
 import requests
 import multiprocessing as mp
+import pymysql.cursors
 
 provinceUrl = "http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/"
 
@@ -70,7 +71,6 @@ def getHtmlByRequests(url):
 def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr","villagetr"]):
     if(node.url):
         i = list.index(_class)
-        # TODO 改成字符串格式化的形式
         nodeSoup = BeautifulSoup(getHtmlByRequests(node.url))
         soups = nodeSoup.find_all("tr",class_=_class)
         subs = []
@@ -79,12 +79,15 @@ def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr",
                 tdSoup = soup.find_all("td")[1]
                 if(tdSoup.find("a")):
                     name = tdSoup.find("a").contents[0]
-                    url = node.url[:node.url.rindex('/')+1] + tdSoup.find("a")['href']
+                    url = "{}{}".format(node.url[:node.url.rindex('/')+1], tdSoup.find("a")['href'])
+                    code = soup.find_all("td")[0].find("a").contents[0]
                     sub = Node(name,url)
+                    sub.setCode(code)
                     print(sub)
                     getAllByNode(sub,list[i+1])
                     subs.append(sub)
             else:
+                # print(soup)
                 tdSoups = soup.find_all("td")
                 name = tdSoups[2].contents[0]
                 code = tdSoups[0].contents[0]
@@ -93,7 +96,72 @@ def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr",
                 subs.append(sub)
                 print(sub)
         node.setSubs(subs)
-        
+    if(_class=="citytr"):
+        writeNodeToJSONFile(node,"{}".format(node.name))
+
+def getAllByNodeAndInsertIntoDB(node:Node,_class="citytr",list = ["citytr","countytr","towntr","villagetr"]):
+    pid = insertIntoDB(node)
+    if(node.url):
+        i = list.index(_class)
+        nodeSoup = BeautifulSoup(getHtmlByRequests(node.url))
+        soups = nodeSoup.find_all("tr",class_=_class)
+        for soup in soups:
+            if(_class != "villagetr"):
+                tdSoup = soup.find_all("td")[1]
+                if(tdSoup.find("a")):
+                    name = tdSoup.find("a").contents[0]
+                    url = "{}{}".format(node.url[:node.url.rindex('/')+1], tdSoup.find("a")['href'])
+                    code = soup.find_all("td")[0].find("a").contents[0]
+                    sub = Node(name,url)
+                    sub.setCode(code)
+                    # print(sub)
+                    insertIntoDB(sub,pid,i)
+                    getAllByNodeAndInsertIntoDB(sub,list[i+1])
+            else:
+                # print(soup)
+                tdSoups = soup.find_all("td")
+                name = tdSoups[2].contents[0]
+                code = tdSoups[0].contents[0]
+                sub = Node(name,"")
+                sub.setCode(code)
+                # print(sub)
+                insertIntoDB(sub,pid,i)
+
+def insertIntoDB(node:Node,parentId=0,level=0):
+    print('insertIntoDB')
+    print(node)
+    id = 0
+    connection = pymysql.connect(host='localhost',port=3307,user='root'
+    ,password='123456',db='spiders',charset='utf8mb4',cursorclass=pymysql.cursors.DictCursor)
+    try:
+        exist = False
+        with connection.cursor() as cursor:
+            sql = "select id from node where code=%s"
+            cursor.execute(sql,(node.code))
+            result = cursor.fetchone()
+            print(result)
+            if result:
+                id = result['id']
+                if id>0:
+                    exist = True
+        print(exist)
+        if exist==False:
+            print("不存在，插入数据库")
+            with connection.cursor() as cursor:
+                sql = "insert into node (`parent_id`,`name`,`code`,`url`,`level`) values (%s,%s,%s,%s,%s)"
+                cursor.execute(sql,(parentId,node.name,node.code,node.url,level))
+            connection.commit()
+
+            with connection.cursor() as cursor:
+                sql = "select id from node where code=%s"
+                cursor.execute(sql,(node.code))
+                result = cursor.fetchone()
+                print(result)
+                id = result['id']
+    finally:
+        connection.close()
+    return id
+
 def obj_to_dict(obj):
     return obj.__dict__
 
@@ -102,19 +170,34 @@ def obj_to_dict(obj):
 def multicore(nodes):
     pool = mp.Pool()
     try:
-        pool.map(getAllByNode,nodes)
+        pool.map(getAllByNodeAndInsertIntoDB,nodes)
     except Exception as e:
         print(e)
+    pool.close()
+    pool.join()
 
 # 单进程处理
 def signleCore(nodes):
-    getAllByNode(nodes[2])
-    
+    for node in nodes:
+        getAllByNodeAndInsertIntoDB(node)
+
+def writeNodeToJSONFile(object,filename):
+    s =json.dumps(object, default=obj_to_dict,ensure_ascii=False).encode('utf8')
+    s = s.decode('utf8')
+    # print(s)
+    with open("{}.json".format(filename),"w") as file:
+        file.write(s)
+
+def insertANode():
+    node = Node("重庆市","http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/50.html")
+    node.setCode(50)
+    id = insertIntoDB(node)
+    print(id)
+
 if __name__ == "__main__":
     nodes = getProvince()
-    multicore(nodes)
-    s =json.dumps(nodes, default=obj_to_dict,ensure_ascii=False).encode('utf8')
-    s = s.decode('utf8')
-    print(s)
-    with open("city.json","w") as file:
-        file.write(s)
+    time1 = time.time()
+    signleCore(nodes)
+    # multicore(nodes)
+    time2 = time.time()
+    print(str(time2-time1))
