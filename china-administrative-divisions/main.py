@@ -70,86 +70,90 @@ def getHtml(url):
 
 session = requests.Session()
 hkey = "docs"
+failURLs = 'fails'
 
 def getHtmlByRequests(url):
-    html = r.hget(hkey,url)
-    if html :
-        print("get html from redis")
-        if '502' in r.get(url):
-            print("redis cache is dirty")
-            response = session.get(url)
-            response.encoding="gbk"
-            html = response.text
-            r.hset(hkey,url,html)
+    html = ''
+    if r.hexists(hkey,url):
+        html = r.hget(hkey,url) 
+        if '502 Bad Gateway' not in html and 'sojson.v5' not in html:
+            # print("{} cache success value:{}".format(url,html))
+            return html
+    print("{} doc not in redis".format(url))
+    response = session.get(url)
+    response.encoding="gbk"
+    html = response.text
+    if '502 Bad Gateway' in html or 'sojson.v5' in html:
+        print("html {} put {} to fail queue".format(html,url))
+        r.lpush(failURLs,url)
     else:
-        print("get html by requests")
-        response = session.get(url)
-        response.encoding="gbk"
-        html = response.text
-        if '502' not in html:
-            r.hset(hkey,url,html)
-
+         print("put {} doc {} into docs hash".format(url,html))
+    r.hset(hkey,url,html)
     return html    
 
 def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr","villagetr"]):
     if(node.url):
         i = list.index(_class)
-        nodeSoup = BeautifulSoup(getHtmlByRequests(node.url))
-        soups = nodeSoup.find_all("tr",class_=_class)
-        subs = []
-        for soup in soups:
-            if(_class != "villagetr"):
-                tdSoup = soup.find_all("td")[1]
-                if(tdSoup.find("a")):
-                    name = tdSoup.find("a").contents[0]
-                    url = "{}{}".format(node.url[:node.url.rindex('/')+1], tdSoup.find("a")['href'])
-                    code = soup.find_all("td")[0].find("a").contents[0]
-                    sub = Node(name,url)
+        doc1 = getHtmlByRequests(node.url)
+        if '502 Bad Gateway' not in doc1:
+            nodeSoup = BeautifulSoup(doc1)
+            soups = nodeSoup.find_all("tr",class_=_class)
+            subs = []
+            for soup in soups:
+                if(_class != "villagetr"):
+                    tdSoup = soup.find_all("td")[1]
+                    if(tdSoup.find("a")):
+                        name = tdSoup.find("a").contents[0]
+                        url = "{}{}".format(node.url[:node.url.rindex('/')+1], tdSoup.find("a")['href'])
+                        code = soup.find_all("td")[0].find("a").contents[0]
+                        sub = Node(name,url)
+                        sub.setCode(code)
+                        print(sub)
+                        getAllByNode(sub,list[i+1])
+                        subs.append(sub)
+                else:
+                    # print(soup)
+                    tdSoups = soup.find_all("td")
+                    name = tdSoups[2].contents[0]
+                    code = tdSoups[0].contents[0]
+                    sub = Node(name,"")
                     sub.setCode(code)
-                    print(sub)
-                    getAllByNode(sub,list[i+1])
                     subs.append(sub)
-            else:
-                # print(soup)
-                tdSoups = soup.find_all("td")
-                name = tdSoups[2].contents[0]
-                code = tdSoups[0].contents[0]
-                sub = Node(name,"")
-                sub.setCode(code)
-                subs.append(sub)
-                print(sub)
-        node.setSubs(subs)
+                    print(sub)
+            node.setSubs(subs)
     if(_class=="citytr"):
         writeNodeToJSONFile(node,"{}".format(node.name))
 
 def getAllByNodeAndInsertIntoDB(node:Node,_class="citytr",list = ["citytr","countytr","towntr","villagetr"]):
-    pid = insertIntoDB(node)
+    # pid = insertIntoDB(node)
     if(node.url):
         i = list.index(_class)
         level = i+1
-        nodeSoup = BeautifulSoup(getHtmlByRequests(node.url))
-        soups = nodeSoup.find_all("tr",class_=_class)
-        for soup in soups:
-            if(_class != "villagetr"):
-                tdSoup = soup.find_all("td")[1]
-                if(tdSoup.find("a")):
-                    name = tdSoup.find("a").contents[0]
-                    url = "{}{}".format(node.url[:node.url.rindex('/')+1], tdSoup.find("a")['href'])
-                    code = soup.find_all("td")[0].find("a").contents[0]
-                    sub = Node(name,url)
+        doc1 = getHtmlByRequests(node.url)
+        if '502 Bad Gateway' not in doc1:
+            nodeSoup = BeautifulSoup(doc1)
+            soups = nodeSoup.find_all("tr",class_=_class)
+            for soup in soups:
+                if(_class != "villagetr"):
+                    tdSoup = soup.find_all("td")[1]
+                    if(tdSoup.find("a")):
+                        name = tdSoup.find("a").contents[0]
+                        url = "{}{}".format(node.url[:node.url.rindex('/')+1], tdSoup.find("a")['href'])
+                        code = soup.find_all("td")[0].find("a").contents[0]
+                        sub = Node(name,url)
+                        sub.setCode(code)
+                        # print(sub)
+                        # insertIntoDB(sub,pid,level)
+                        getAllByNodeAndInsertIntoDB(sub,list[i+1])
+                else:
+                    # print(soup)
+                    tdSoups = soup.find_all("td")
+                    name = tdSoups[2].contents[0]
+                    code = tdSoups[0].contents[0]
+                    sub = Node(name,"")
                     sub.setCode(code)
                     # print(sub)
-                    insertIntoDB(sub,pid,level)
-                    getAllByNodeAndInsertIntoDB(sub,list[i+1])
-            else:
-                # print(soup)
-                tdSoups = soup.find_all("td")
-                name = tdSoups[2].contents[0]
-                code = tdSoups[0].contents[0]
-                sub = Node(name,"")
-                sub.setCode(code)
-                # print(sub)
-                insertIntoDB(sub,pid,level)
+                    # insertIntoDB(sub,pid,level)
 
 def insertIntoDB(node:Node,parentId=0,level=0):
     print('insertIntoDB')
@@ -191,7 +195,8 @@ def obj_to_dict(obj):
 
 
 # 多进程处理
-def multicore(nodes):
+def multicore():
+    nodes = getProvince()
     pool = mp.Pool()
     try:
         pool.map(getAllByNodeAndInsertIntoDB,nodes)
@@ -221,12 +226,36 @@ def insertANode():
 def stringContain(s1,s2):
     return s2 not in s1
 
+def scanFailUrl():
+    url = []
+    keys = r.hkeys(hkey)
+    for key in keys:
+        val = r.hget(hkey,key)
+        if '502 Bad Gateway' in val or 'sojson.v5' in val:
+            # if 'sojson.v5' in val:
+            #     print(val)
+            url.append(key)
+            r.lpush(failURLs,key)
+    return url
+
+def processFail():
+    print(r.llen(failURLs))
+    while(r.llen(failURLs)>0):
+        url = r.rpop(failURLs)
+        print(url)
+        getHtmlByRequests(url)
+
 if __name__ == "__main__":
-    nodes = getProvince()
     time1 = time.time()
-    signleCore(nodes)
-    # multicore(nodes)
-    # print(r.hkeys(hkey)
+    # signleCore(nodes)
+    multicore()
+    # print(scanFailUrl())
+    # processFail()
+    # print(r.lrange(failURLs,0,-1))
+    # print(r.hlen(hkey))#28906 33368 35736 36183 44253 45872 46348 46392 46392
+    # getHtmlByRequests('http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2019/65/90/659006.html')
+    # print(len(scanFailUrl()))#199 197 370 183 164 69 277 96 10 2
+    # print(r.llen(failURLs))
     time2 = time.time()
     print(str(time2-time1))
 
