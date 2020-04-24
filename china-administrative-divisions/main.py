@@ -77,7 +77,7 @@ def getHtmlByRequests(url):
     if r.hexists(hkey,url):
         html = r.hget(hkey,url) 
         if '502 Bad Gateway' not in html and 'sojson.v5' not in html:
-            # print("{} cache success value:{}".format(url,html))
+            print("get {} : doc from redis".format(url))
             return html
     print("{} doc not in redis".format(url))
     response = session.get(url)
@@ -125,7 +125,7 @@ def getAllByNode(node:Node,_class="citytr",list = ["citytr","countytr","towntr",
         writeNodeToJSONFile(node,"{}".format(node.name))
 
 def getAllByNodeAndInsertIntoDB(node:Node,_class="citytr",list = ["citytr","countytr","towntr","villagetr"]):
-    # pid = insertIntoDB(node)
+    pid = insertIntoDB(node)
     if(node.url):
         i = list.index(_class)
         level = i+1
@@ -143,7 +143,7 @@ def getAllByNodeAndInsertIntoDB(node:Node,_class="citytr",list = ["citytr","coun
                         sub = Node(name,url)
                         sub.setCode(code)
                         # print(sub)
-                        # insertIntoDB(sub,pid,level)
+                        insertIntoDB(sub,pid,level)
                         getAllByNodeAndInsertIntoDB(sub,list[i+1])
                 else:
                     # print(soup)
@@ -153,7 +153,7 @@ def getAllByNodeAndInsertIntoDB(node:Node,_class="citytr",list = ["citytr","coun
                     sub = Node(name,"")
                     sub.setCode(code)
                     # print(sub)
-                    # insertIntoDB(sub,pid,level)
+                    insertIntoDB(sub,pid,level)
 
 def insertIntoDB(node:Node,parentId=0,level=0):
     print('insertIntoDB')

@@ -22,3 +22,36 @@
 `tr.towntr`
 - 村、社区获取
 `tr.villagetr`
+
+### 数据统计
+
+#### 省、市、区、乡/镇、村/社区个数
+
+|省|市|区|乡/镇|村/社区|
+|---|---|---|---|---|
+|31|342|2991|43027|656781|
+
+```sql
+SELECT 
+    CASE
+        WHEN level = 0 THEN '省'
+        WHEN level = 1 THEN '市'
+        WHEN level = 2 THEN '区'
+        WHEN level = 3 THEN '乡/镇'
+        WHEN level = 4 THEN '村/社区'
+    END as name,
+    COUNT(level)
+FROM
+    node
+GROUP BY level
+```
+
+#### 省之最 TODO
+
+##### 市最多的省
+
+##### 区最多的省
+
+##### 乡/镇最多的省
+
+##### 村/社区最多的省
