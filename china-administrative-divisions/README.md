@@ -50,6 +50,42 @@ FROM
 GROUP BY level
 ```
 
+#### 查询省、市、区、乡、村
+
+```sql
+-- 1
+select p.* ,c.* ,c1.*,c2.*,c3.*
+from node p
+left join node c on c.parent_id=p.id
+left join node c1 on c1.parent_id = c.id
+left join node c2 on c2.parent_id = c1.id
+left join node c3 on c3.parent_id = c2.id
+where p.level=0
+order by p.code,c.code;
+
+-- 2
+-- 2比1快
+select * from (select * from node where level=0) p
+left join node c on c.parent_id=p.id
+left join node c1 on c1.parent_id = c.id
+left join node c2 on c2.parent_id = c1.id
+left join node c3 on c3.parent_id = c2.id
+order by p.code,c.code;
+```
+
+##### 十万级数据查询优化
+
+**从查询失败到成功，能够从几十秒到毫秒呢？**
+
+- 未建索引时查询超过了`connect_timeout`设置的值
+
+- 在`parent_id`、`level`上分别创建索引后查询结果如下：
+
+```
+656784 row(s) returned 53.491 sec / 28.442 sec
+```
+
+
 #### 省之最 TODO
 
 ##### 市最多的省

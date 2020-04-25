@@ -13,3 +13,9 @@ CREATE TABLE node (
     update_time TIMESTAMP null,
     primary key(id)
 )  ENGINE=INNODB;
+
+
+
+create index in_parent_id on node (parent_id);
+
+create index in_level on node (level);
