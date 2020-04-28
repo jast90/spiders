@@ -57,12 +57,16 @@ def getContent(response):
 def store2json(info,filename):
     res = []
     for record in info:
-        record['reportDate'] = record['reportDate'].strftime('%Y-%m-%d %H:%M:%S')
-        record['auditDate'] = record['auditDate'].strftime('%Y-%m-%d %H:%M:%S')
+        if(record['reportDate']):
+            record['reportDate'] = record['reportDate'].strftime('%Y-%m-%d %H:%M:%S')
+        if(record['auditDate']):
+            record['auditDate'] = record['auditDate'].strftime('%Y-%m-%d %H:%M:%S')
+        if(record['snatchDate']):
+            record['snatchDate'] = record['snatchDate'].strftime('%Y-%m-%d %H:%M:%S')
+        
         res.append(record)
-    fp = open('{}.json'.format(filename),'w') 
-    json.dump(res,fp,indent=4,ensure_ascii=False)
-    fp.close()
+    with open('prices/{}.json'.format(filename),'w') as fp:
+        json.dump(res,fp,indent=4,ensure_ascii=False)
 
 def getDateString():
     return time.strftime("%Y-%m-%d",time.localtime())
