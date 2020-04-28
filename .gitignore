@@ -1,2 +1,4 @@
 .DS_Store
 .vscode/settings.json
+china-administrative-divisions/__pycache__/
+.ipynb_checkpoints
