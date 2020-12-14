@@ -68,7 +68,7 @@ def store2json(info,filename):
         res.append(record)
     # with open('prices/{}.json'.format(filename),'w') as fp:
         # json.dump(res,fp,indent=4,ensure_ascii=False)
-    with jsonlines.open('prices/{}.jsonl'.format(filename), mode='w') as writer:
+    with jsonlines.open('/home/jast/data/{}.jsonl'.format(filename), mode='w') as writer:
         writer.write_all(res)
 
 def getDateString():

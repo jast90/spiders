@@ -4,6 +4,12 @@
 
 [ShiXi_inWuhan](https://github.com/LouisYZK/ShiXi_inWuhan)
 
+## 安装python依赖
+```
+pip3 install Py3AMF
+pip3 install jsonlines
+```
+
 ## crontab
 
 ```shell
